@@ -250,20 +250,58 @@ const App: React.FC = () => {
       
       canvas.toBlob(async (blob: Blob | null) => {
          if (blob) {
-           try {
-             await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': blob })
-             ]);
-           } catch (err) {
-             console.error("Clipboard write failed", err);
-             alert("Failed to copy to clipboard. Your browser might not support this.");
+           const fileName = `Timesheet_${name.replace(/[^a-zA-Z0-9]/g, '_') || 'Export'}.png`;
+           const file = new File([blob], fileName, { type: 'image/png' });
+
+           // 1. Try Web Share API (Best for Mobile "Save to Photos")
+           // Using "as any" to bypass potential missing type definitions for canShare in some environments
+           if (navigator.share && (navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+              try {
+                await navigator.share({
+                  files: [file],
+                  title: 'Nancy Mays Timesheet',
+                });
+                setIsCopying(false);
+                return;
+              } catch (err) {
+                // If user cancels, we just stop. If real error, fall through.
+                if ((err as Error).name === 'AbortError') {
+                   setIsCopying(false);
+                   return;
+                }
+                console.warn("Share API failed, falling back", err);
+              }
            }
+
+           // 2. Fallback to Clipboard (Desktop)
+           try {
+             if (navigator.clipboard && navigator.clipboard.write) {
+               await navigator.clipboard.write([
+                  new ClipboardItem({ 'image/png': blob })
+               ]);
+               setTimeout(() => setIsCopying(false), 2000);
+               return;
+             }
+           } catch (err) {
+             console.warn("Clipboard write failed", err);
+           }
+           
+           // 3. Fallback to Download
+           const url = URL.createObjectURL(blob);
+           const link = document.createElement('a');
+           link.href = url;
+           link.download = fileName;
+           document.body.appendChild(link);
+           link.click();
+           document.body.removeChild(link);
+           URL.revokeObjectURL(url);
+           setTimeout(() => setIsCopying(false), 2000);
          }
-         setTimeout(() => setIsCopying(false), 2000);
       });
     } catch (e) {
        console.error("Screenshot failed", e);
        setIsCopying(false);
+       alert("Failed to generate image.");
     }
   };
 
@@ -484,7 +522,7 @@ const App: React.FC = () => {
             <button 
               onClick={handleCopyScreenshot} 
               className="text-xs font-bold text-cyan-600 border-2 border-cyan-600 px-3 py-2 hover:bg-cyan-50 rounded uppercase tracking-wider bg-white min-w-[80px]" 
-              title="Copy image to clipboard"
+              title="Save image to photos or clipboard"
             >
               {isCopying ? 'Copied!' : 'COPY IMAGE'}
             </button>
