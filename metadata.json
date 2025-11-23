@@ -1,0 +1,5 @@
+{
+  "name": "Nancys-Timesheet",
+  "description": "A digital, interactive version of the Nancy Mays 50's Cafe timesheet with automatic calculations and AI payroll review.",
+  "requestFramePermissions": []
+}
