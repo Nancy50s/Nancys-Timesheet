@@ -458,7 +458,7 @@
             <td className="border-r-2 border-b border-black p-0 h-8 w-20 bg-amber-100">
               <input type="text" className={inputClass} value={entry.otHours} readOnly />
             </td>
-            <td className="border-r-2 border-b border-black h-8 w-4 bg-stone-200"></td>
+            <td className="border-r-2 border-b border-black w-4 bg-stone-200"></td>
             <td className={`border-r-2 border-b border-black p-0 h-8 w-24 ${moneyColClass}`}>
               <input type="text" inputMode="decimal" className={inputClass} value={entry.sales} onChange={handleChange('sales')} onBlur={handleBlur('sales')} />
             </td>
@@ -633,7 +633,9 @@
             
             canvas.toBlob(async (blob) => {
                if (blob) {
-                 const fileName = `Timesheet_${name.replace(/[^a-zA-Z0-9]/g, '_') || 'Export'}.png`;
+                 const safeName = name.replace(/[^a-zA-Z0-9]/g, '_') || 'Export';
+                 const safeDate = periodEnding ? `_${periodEnding.replace(/[^a-zA-Z0-9]/g, '-')}` : '';
+                 const fileName = `Timesheet_${safeName}${safeDate}.png`;
                  const file = new File([blob], fileName, { type: 'image/png' });
 
                  // 1. Try Web Share API (Mobile 'Save to Photos' path)

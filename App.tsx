@@ -250,7 +250,9 @@ const App: React.FC = () => {
       
       canvas.toBlob(async (blob: Blob | null) => {
          if (blob) {
-           const fileName = `Timesheet_${name.replace(/[^a-zA-Z0-9]/g, '_') || 'Export'}.png`;
+           const safeName = name.replace(/[^a-zA-Z0-9]/g, '_') || 'Export';
+           const safeDate = periodEnding ? `_${periodEnding.replace(/[^a-zA-Z0-9]/g, '-')}` : '';
+           const fileName = `Timesheet_${safeName}${safeDate}.png`;
            const file = new File([blob], fileName, { type: 'image/png' });
 
            // 1. Try Web Share API (Best for Mobile "Save to Photos")
