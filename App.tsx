@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { TimesheetRow } from './components/TimesheetRow';
 import { TimeEntry } from './types';
 
@@ -134,20 +134,26 @@ const App: React.FC = () => {
 
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   
-  // Save feedback state
-  const [isSaving, setIsSaving] = useState(false);
+  // Save feedback state (removed isSaving)
   const [isCopying, setIsCopying] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
   
   // Text Entry Mode State
   const [isTextMode, setIsTextMode] = useState(false);
   
   // Ref for capturing screenshot
   const timesheetRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
 
   // --- Effects ---
 
   // Persistence Effect
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     try {
       const dataToSave = {
         name,
@@ -155,6 +161,12 @@ const App: React.FC = () => {
         periodEnding
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      
+      // Trigger Auto Save Popup
+      setIsAutoSaving(true);
+      const timer = setTimeout(() => setIsAutoSaving(false), 800); // Show for 0.8 seconds
+      return () => clearTimeout(timer);
+
     } catch (e) {
       console.error("Failed to save to cache", e);
     }
@@ -227,14 +239,6 @@ const App: React.FC = () => {
 
   // --- Actions ---
 
-  const handleSave = () => {
-    setIsSaving(true);
-    // Data is auto-saved via useEffect, this provides visual feedback
-    setTimeout(() => {
-      setIsSaving(false);
-    }, 2000);
-  };
-  
   const handleCopyScreenshot = async () => {
     if (!timesheetRef.current) return;
     setIsCopying(true);
@@ -502,25 +506,19 @@ const App: React.FC = () => {
   };
 
   const totalInputClass = "w-full h-full bg-transparent text-center focus:outline-none text-base font-bold font-[Arial] text-gray-800 appearance-none rounded-none";
+  const headerBgClass = isTextMode ? 'bg-yellow-100' : '';
   
   return (
     <div className="min-h-screen bg-white flex flex-col w-full overflow-x-auto">
       
       {/* Main Content Wrapper */}
-      <div ref={timesheetRef} className="bg-white relative shrink-0 w-max max-w-none inline-block px-4 pb-4 pt-2 mx-auto">
+      <div ref={timesheetRef} className="bg-white relative shrink-0 w-max max-w-none inline-block px-4 pt-2 mx-auto pb-20">
             
-        {/* ACTION BUTTONS (SAVE / SCREENSHOT / TEXT MODE / CLEAR) */}
+        {/* ACTION BUTTONS (TOP LEFT) */}
         {/* Added no-screenshot class so buttons don't appear in the captured image */}
         <div className="absolute top-2 left-2 z-20 flex flex-col items-start print:hidden no-screenshot">
           
           <div className="flex flex-row gap-2">
-            <button 
-              onClick={handleSave} 
-              className="text-xs font-bold text-green-600 border-2 border-green-600 px-3 py-2 hover:bg-green-50 rounded uppercase tracking-wider bg-white min-w-[80px]" 
-              title="Save changes"
-            >
-              {isSaving ? 'Saved!' : 'Save'}
-            </button>
             <button 
               onClick={handleCopyScreenshot} 
               className="text-xs font-bold text-cyan-600 border-2 border-cyan-600 px-3 py-2 hover:bg-cyan-50 rounded uppercase tracking-wider bg-white min-w-[80px]" 
@@ -612,19 +610,19 @@ const App: React.FC = () => {
             <table className="border-collapse table-fixed w-max">
               <thead>
                 <tr>
-                  <th className="border-r-2 border-b-4 border-black text-center py-1 w-10">No.</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-16">Day</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-32">Date</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28">In - 1</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28">Out - 1</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20">Break</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28">In - 2</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28">Out - 2</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20">Hours</th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20">O.T. Hours</th>
+                  <th className={`border-r-2 border-b-4 border-black text-center py-1 w-10 ${headerBgClass}`}>No.</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-16 ${headerBgClass}`}>Day</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-32 ${headerBgClass}`}>Date</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28 ${headerBgClass}`}>In - 1</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28 ${headerBgClass}`}>Out - 1</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20 ${headerBgClass}`}>Break</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28 ${headerBgClass}`}>In - 2</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-28 ${headerBgClass}`}>Out - 2</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20 ${headerBgClass}`}>Hours</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-20 ${headerBgClass}`}>O.T. Hours</th>
                   <th className="border-r-2 border-b-4 border-black w-4 bg-stone-200"></th>
-                  <th className="border-r-2 border-b-4 border-black text-left pl-2 py-1 w-24">Sales</th>
-                  <th className="border-b-4 border-black text-left pl-2 py-1 w-24">Tips</th>
+                  <th className={`border-r-2 border-b-4 border-black text-left pl-2 py-1 w-24 ${headerBgClass}`}>Sales</th>
+                  <th className={`border-b-4 border-black text-left pl-2 py-1 w-24 ${headerBgClass}`}>Tips</th>
                 </tr>
               </thead>
               <tbody>
@@ -657,7 +655,66 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* ACTION BUTTONS (BOTTOM RIGHT) - DUPLICATED */}
+        <div className="absolute bottom-2 right-2 z-20 flex flex-col items-end print:hidden no-screenshot">
+          {showConfirmReset && (
+            <div className="mb-2 w-64 bg-white border-4 border-black shadow-xl p-3 text-center relative">
+               <div className="absolute -top-1 -left-1 w-full h-full bg-red-100 -z-10 border-4 border-black hidden sm:block"></div>
+               {/* Caret pointing DOWN */}
+               <div className="absolute -bottom-[10px] right-4 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-black"></div>
+               <div className="absolute -bottom-[4px] right-4 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white"></div>
+               
+               <h4 className="text-red-600 font-bold font-[Arial] uppercase text-sm mb-2 tracking-wider">Wait a sec!</h4>
+               <p className="text-xs font-[Arial] mb-3 leading-snug text-gray-800 font-medium">
+                  Are you sure you want to clear the form? This will delete all your hard work.
+               </p>
+               <div className="flex justify-center gap-2">
+                  <button onClick={() => setShowConfirmReset(false)} className="bg-gray-200 hover:bg-gray-300 text-black border-2 border-black font-bold py-1 px-3 text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 transition-all">Cancel</button>
+                  <button onClick={performReset} className="bg-red-600 hover:bg-red-700 text-white border-2 border-black font-bold py-1 px-3 text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 transition-all">Yes, Clear</button>
+               </div>
+            </div>
+          )}
+          
+          <div className="flex flex-row gap-2">
+            <button 
+              onClick={handleCopyScreenshot} 
+              className="text-xs font-bold text-cyan-600 border-2 border-cyan-600 px-3 py-2 hover:bg-cyan-50 rounded uppercase tracking-wider bg-white min-w-[80px]" 
+              title="Save image to photos or clipboard"
+            >
+              {isCopying ? 'Copied!' : 'COPY IMAGE'}
+            </button>
+            <button 
+              onClick={() => setIsTextMode(!isTextMode)} 
+              className={`text-xs font-bold border-2 px-3 py-2 rounded uppercase tracking-wider bg-white min-w-[80px] ${
+                isTextMode 
+                  ? 'text-purple-600 border-purple-600 hover:bg-purple-50' 
+                  : 'text-blue-600 border-blue-600 hover:bg-blue-50'
+              }`}
+              title="Toggle between dropdown and text input"
+            >
+              {isTextMode ? 'Dropdown Mode' : 'Text Entry Mode'}
+            </button>
+            <button 
+              onClick={requestReset} 
+              className="text-xs font-bold text-red-600 border-2 border-red-600 px-3 py-2 hover:bg-red-50 rounded uppercase tracking-wider bg-white min-w-[80px]" 
+              title="Delete all data and reset form"
+            >
+              Clear Form
+            </button>
+          </div>
+        </div>
+
       </div>
+
+      {/* AUTO SAVING POPUP (Outside Screenshot Ref) */}
+      {isAutoSaving && (
+         <div className="fixed bottom-4 right-4 z-50 bg-white border-2 border-black px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in slide-in-from-bottom-2 fade-in duration-300 pointer-events-none">
+            <div className="flex items-center gap-3">
+               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+               <span className="text-xs font-black font-[Arial] uppercase tracking-widest text-black">Auto Saving...</span>
+            </div>
+         </div>
+      )}
     </div>
   );
 };

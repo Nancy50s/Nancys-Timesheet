@@ -155,8 +155,10 @@ export const TimesheetRow: React.FC<TimesheetRowProps> = ({ entry, onChange, tim
   const disabledClass = "opacity-50 bg-gray-200 cursor-not-allowed";
 
   // --- COLOR BANDING ---
-  // Row Banding: Alternating Orange/White
-  const rowBgClass = entry.id % 2 !== 0 ? 'bg-orange-100' : 'bg-white';
+  // Row Banding: Alternating Orange/White normally, Purple theme when in Text Mode
+  const rowBgClass = isTextMode 
+    ? (entry.id % 2 !== 0 ? 'bg-purple-100' : 'bg-purple-50')
+    : (entry.id % 2 !== 0 ? 'bg-orange-100' : 'bg-white');
   
   // Column Banding: Vertical stripes for data grouping
   // Using semi-transparent colors to let the row banding show through (plaid effect)
