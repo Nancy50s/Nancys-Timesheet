@@ -166,6 +166,87 @@
         return null;
       };
 
+      // Helper to convert time string (e.g. "04:30 PM") to total minutes from midnight
+      const toMinutes = (timeStr) => {
+        if (!timeStr) return null;
+        const [time, modifier] = timeStr.split(' ');
+        if (!time || !modifier) return null;
+        let [h, m] = time.split(':').map(Number);
+        if (isNaN(h) || isNaN(m)) return null;
+        if (h === 12 && modifier === 'AM') h = 0;
+        if (h !== 12 && modifier === 'PM') h += 12;
+        return h * 60 + m;
+      };
+
+      // Helper to recalculate hours and overtime for ALL rows
+      // Applies Daily OT (> 8 hours) AND Weekly OT (Total Hours > 40)
+      // CALCULATIONS DONE IN MINUTES TO AVOID FLOATING POINT ERRORS
+      const recalculateOvertime = (rows) => {
+        let w1TotalMins = 0;
+        let w2TotalMins = 0;
+        const WEEKLY_LIMIT_MINS = 40 * 60; // 2400 minutes
+        const DAILY_LIMIT_MINS = 8 * 60;   // 480 minutes
+
+        return rows.map((row, index) => {
+          // Determine if we are in Week 1 (0-6) or Week 2 (7-13)
+          const isWeek2 = index >= 7;
+
+          const tIn1 = toMinutes(row.in1);
+          const tOut1 = toMinutes(row.out1);
+          const tIn2 = toMinutes(row.in2);
+          const tOut2 = toMinutes(row.out2);
+
+          let totalMinutes = 0;
+          
+          if (tIn1 !== null && tOut1 !== null) {
+            let diff = tOut1 - tIn1;
+            if (diff < 0) diff += 1440; // Handle overnight
+            totalMinutes += diff;
+          }
+
+          if (tIn2 !== null && tOut2 !== null) {
+            let diff = tOut2 - tIn2;
+            if (diff < 0) diff += 1440;
+            totalMinutes += diff;
+          }
+          
+          if (totalMinutes > 0) {
+            // Calculate quota based on TOTAL hours worked so far in the week
+            const currentAccum = isWeek2 ? w2TotalMins : w1TotalMins;
+            const remainingQuota = Math.max(0, WEEKLY_LIMIT_MINS - currentAccum);
+            
+            // Determine how many minutes of THIS entry can be Regular.
+            // 1. Cannot exceed the daily limit of 8 hours (480 mins).
+            // 2. Cannot exceed the remaining 40-hour weekly quota.
+            // 3. Obviously cannot exceed total minutes worked today.
+            const allowedRegMins = Math.min(totalMinutes, remainingQuota, DAILY_LIMIT_MINS);
+            
+            const finalRegMins = allowedRegMins;
+            const finalOTMins = totalMinutes - finalRegMins;
+
+            // Accumulate TOTAL minutes worked (Reg + OT) for the weekly threshold
+            if (isWeek2) {
+              w2TotalMins += totalMinutes;
+            } else {
+              w1TotalMins += totalMinutes;
+            }
+
+            return {
+              ...row,
+              hours: (finalRegMins / 60).toFixed(2),
+              otHours: finalOTMins > 0 ? (finalOTMins / 60).toFixed(2) : ''
+            };
+
+          } else {
+            return {
+              ...row,
+              hours: '',
+              otHours: ''
+            };
+          }
+        });
+      };
+
       // --- COMPONENTS ---
 
       // Table Row Component
@@ -514,8 +595,25 @@
         // Footer Totals
         const [regHours, setRegHours] = useState('');
         const [otHoursTotal, setOtHoursTotal] = useState('');
+        const [combinedHours, setCombinedHours] = useState(''); // New Combined Total State
         const [totalSales, setTotalSales] = useState('');
         const [totalTips, setTotalTips] = useState('');
+
+        // Week 1 Totals
+        const [week1Totals, setWeek1Totals] = useState({
+          reg: '',
+          ot: '',
+          sales: '',
+          tips: ''
+        });
+
+        // Week 2 Totals
+        const [week2Totals, setWeek2Totals] = useState({
+          reg: '',
+          ot: '',
+          sales: '',
+          tips: ''
+        });
 
         // Validation & Modal State
         const [validationError, setValidationError] = useState(null);
@@ -595,31 +693,76 @@
           let ot = 0;
           let s = 0;
           let t = 0;
+
+          // Week 1 accumulators
+          let w1h = 0;
+          let w1ot = 0;
+          let w1s = 0;
+          let w1t = 0;
+
+          // Week 2 accumulators
+          let w2h = 0;
+          let w2ot = 0;
+          let w2s = 0;
+          let w2t = 0;
           
-          rows.forEach(r => {
+          rows.forEach((r, index) => {
             // Sum Hours
             const valH = parseFloat(r.hours);
-            if (!isNaN(valH)) h += valH;
+            const valHNum = !isNaN(valH) ? valH : 0;
+            h += valHNum;
             
             // Sum OT Hours
             const valOT = parseFloat(r.otHours);
-            if (!isNaN(valOT)) ot += valOT;
+            const valOTNum = !isNaN(valOT) ? valOT : 0;
+            ot += valOTNum;
 
             // Sum Sales
             const cleanSales = r.sales.replace(/[^0-9.-]+/g, '');
             const valS = parseFloat(cleanSales);
-            if (!isNaN(valS)) s += valS;
+            const valSNum = !isNaN(valS) ? valS : 0;
+            s += valSNum;
 
             // Sum Tips
             const cleanTips = r.tips.replace(/[^0-9.-]+/g, '');
             const valT = parseFloat(cleanTips);
-            if (!isNaN(valT)) t += valT;
+            const valTNum = !isNaN(valT) ? valT : 0;
+            t += valTNum;
+
+            // Accumulate Week 1 (Indices 0-6)
+            if (index < 7) {
+              w1h += valHNum;
+              w1ot += valOTNum;
+              w1s += valSNum;
+              w1t += valTNum;
+            } else {
+              // Accumulate Week 2 (Indices 7-13)
+              w2h += valHNum;
+              w2ot += valOTNum;
+              w2s += valSNum;
+              w2t += valTNum;
+            }
           });
 
           setRegHours(h.toFixed(2));
           setOtHoursTotal(ot.toFixed(2));
+          setCombinedHours((h + ot).toFixed(2)); // Calculate Combined Total
           setTotalSales('$' + s.toFixed(2));
           setTotalTips('$' + t.toFixed(2));
+
+          setWeek1Totals({
+            reg: w1h.toFixed(2),
+            ot: w1ot.toFixed(2),
+            sales: '$' + w1s.toFixed(2),
+            tips: '$' + w1t.toFixed(2)
+          });
+
+          setWeek2Totals({
+            reg: w2h.toFixed(2),
+            ot: w2ot.toFixed(2),
+            sales: '$' + w2s.toFixed(2),
+            tips: '$' + w2t.toFixed(2)
+          });
         }, [rows]);
 
         useEffect(() => {
@@ -792,6 +935,8 @@
           }
 
           setRows(prev => {
+            // 1. First, apply the input change and simple intra-row logic (Break, Date cascading)
+            // We will map to a temporary array first
             const isDateCascade = field === 'date' && finalValue !== '';
             
             let anchorDate = null;
@@ -803,15 +948,17 @@
               }
             }
 
-            return prev.map(row => {
+            const tempRows = prev.map(row => {
               const updatedRow = { ...row };
 
+              // Apply Value to Target
               if (row.id === numericId) {
                 if (field !== 'id') {
                   updatedRow[field] = finalValue;
                 }
               }
 
+              // Apply Date Cascade
               if (isDateCascade && anchorDate) {
                 const rowDate = new Date(anchorDate);
                 rowDate.setDate(anchorDate.getDate() + row.id);
@@ -822,23 +969,12 @@
                 updatedRow.date = `${mm}/${dd}/${yyyy}`;
               }
 
+              // Intra-row Logic: Calculate Break Time Display
+              // Note: We are NO LONGER calculating hours/otHours here. That happens in step 2.
               if (row.id === numericId && ['in1', 'out1', 'in2', 'out2'].includes(field)) {
                 
-                const toMinutes = (timeStr) => {
-                  if (!timeStr) return null;
-                  const [time, modifier] = timeStr.split(' ');
-                  if (!time || !modifier) return null;
-                  let [h, m] = time.split(':').map(Number);
-                  if (isNaN(h) || isNaN(m)) return null;
-                  if (h === 12 && modifier === 'AM') h = 0;
-                  if (h !== 12 && modifier === 'PM') h += 12;
-                  return h * 60 + m;
-                };
-
-                const tIn1 = toMinutes(updatedRow.in1);
                 const tOut1 = toMinutes(updatedRow.out1);
                 const tIn2 = toMinutes(updatedRow.in2);
-                const tOut2 = toMinutes(updatedRow.out2);
 
                 if (tOut1 !== null && tIn2 !== null) {
                   let breakDiff = tIn2 - tOut1;
@@ -854,40 +990,14 @@
                      updatedRow.break = '';
                    }
                 }
-
-                let totalMinutes = 0;
-                let hasCalculated = false;
-
-                if (tIn1 !== null && tOut1 !== null) {
-                  let diff = tOut1 - tIn1;
-                  if (diff < 0) diff += 1440;
-                  totalMinutes += diff;
-                  hasCalculated = true;
-                }
-
-                if (tIn2 !== null && tOut2 !== null) {
-                  let diff = tOut2 - tIn2;
-                  if (diff < 0) diff += 1440;
-                  totalMinutes += diff;
-                  hasCalculated = true;
-                }
-
-                if (hasCalculated) {
-                  const decimalHours = totalMinutes / 60;
-                  updatedRow.hours = decimalHours.toFixed(2);
-                  if (decimalHours > 8) {
-                    updatedRow.otHours = (decimalHours - 8).toFixed(2);
-                  } else {
-                    updatedRow.otHours = '';
-                  }
-                } else {
-                  updatedRow.hours = '';
-                  updatedRow.otHours = '';
-                }
               }
 
               return updatedRow;
             });
+
+            // 2. Second, run the comprehensive Overtime Calculation on the full dataset
+            // This ensures that changes in row 1 affect row 5's Weekly Overtime status if needed.
+            return recalculateOvertime(tempRows);
           });
         };
 
@@ -1007,7 +1117,8 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((row) => (
+                      {/* FIRST WEEK (Rows 0-6) */}
+                      {rows.slice(0, 7).map((row) => (
                         <TimesheetRow 
                           key={row.id} 
                           entry={row} 
@@ -1021,15 +1132,65 @@
                           onDismissAutoCorrect={dismissAutoCorrect}
                         />
                       ))}
+
+                      {/* WEEK 1 TOTALS ROW */}
+                      <tr className="bg-gray-50 border-t-2 border-black">
+                        <td colSpan={8} className="border-r-2 border-b-4 border-black text-right p-2 font-bold text-sm align-middle bg-gray-100">Week 1 Totals:</td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week1Totals.reg} readOnly /></td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week1Totals.ot} readOnly /></td>
+                        <td className="border-r-2 border-b-4 border-black bg-stone-200"></td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week1Totals.sales} readOnly /></td>
+                        <td className="border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week1Totals.tips} readOnly /></td>
+                      </tr>
+
+                      {/* SPACER ROW to visually separate weeks */}
+                      <tr>
+                         <td colSpan={13} className="h-4 bg-stone-200 border-x-4 border-black border-b-4"></td>
+                      </tr>
+
+                      {/* SECOND WEEK (Rows 7-13) */}
+                      {rows.slice(7).map((row) => (
+                        <TimesheetRow 
+                          key={row.id} 
+                          entry={row} 
+                          onChange={handleRowChange} 
+                          timeOptions={TIME_OPTIONS} 
+                          validationError={validationError?.rowId === row.id ? validationError : null}
+                          onDismissError={dismissError}
+                          name={name}
+                          isTextMode={isTextMode}
+                          autoCorrectWarning={autoCorrectWarning?.rowId === row.id ? autoCorrectWarning : null}
+                          onDismissAutoCorrect={dismissAutoCorrect}
+                        />
+                      ))}
+
+                      {/* WEEK 2 TOTALS ROW */}
+                      <tr className="bg-gray-50 border-t-2 border-black">
+                        <td colSpan={8} className="border-r-2 border-b-4 border-black text-right p-2 font-bold text-sm align-middle bg-gray-100">Week 2 Totals:</td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week2Totals.reg} readOnly /></td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week2Totals.ot} readOnly /></td>
+                        <td className="border-r-2 border-b-4 border-black bg-stone-200"></td>
+                        <td className="border-r-2 border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week2Totals.sales} readOnly /></td>
+                        <td className="border-b-4 border-black p-0 h-8 bg-gray-100"><input className={totalInputClass} value={week2Totals.tips} readOnly /></td>
+                      </tr>
                     </tbody>
                     <tfoot>
                       <tr>
-                        <td colSpan={8} className="border-r-2 border-b-4 border-black text-right p-2 font-bold text-sm align-middle">Totals:</td>
+                        <td colSpan={8} className="border-r-2 border-b-4 border-black text-right p-2 font-bold text-sm align-middle">Grand Totals:</td>
                         <td className="border-r-2 border-b-4 border-black p-0 h-10 bg-yellow-50/30"><input className={totalInputClass} value={regHours} readOnly /></td>
                         <td className="border-r-2 border-b-4 border-black p-0 h-10 bg-yellow-50/30"><input className={totalInputClass} value={otHoursTotal} readOnly /></td>
                         <td className="border-r-2 border-b-4 border-black bg-stone-200"></td>
                         <td className="border-r-2 border-b-4 border-black p-0 h-10"><input className={totalInputClass} value={totalSales} readOnly /></td>
                         <td className="border-b-4 border-black p-0 h-10"><input className={totalInputClass} value={totalTips} readOnly /></td>
+                      </tr>
+                      {/* NEW ROW for Combined Total */}
+                      <tr>
+                        <td colSpan={8} className="border-r-2 border-b-4 border-black text-right p-2 font-bold text-sm align-middle">Total Hrs + O.T.:</td>
+                        <td colSpan={2} className="border-r-2 border-b-4 border-black p-0 h-10 bg-yellow-100">
+                           <input className={totalInputClass} value={combinedHours} readOnly />
+                        </td>
+                        <td className="border-r-2 border-b-4 border-black bg-stone-200"></td>
+                        <td colSpan={2} className="border-b-4 border-black bg-white"></td>
                       </tr>
                     </tfoot>
                   </table>
