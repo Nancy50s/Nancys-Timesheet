@@ -323,6 +323,7 @@ const App: React.FC = () => {
     setValidationError(null);
     setAutoCorrectWarning(null);
     setShowPeriodWarning(false);
+    setIsTextMode(false); // Reset to dropdown mode
   };
 
   const dismissError = () => {
