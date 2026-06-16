@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nancy Mays 50's Cafe Timesheet</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- html2canvas for screenshots -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee+Inline&family=Courgette&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      /* Custom font classes */
+      .font-retro { font-family: 'Bungee Inline', cursive; }
+      .font-hand { font-family: 'Courgette', cursive; }
+      .font-body { font-family: 'Inter', sans-serif; }
+      
+      /* Hide number input spinners */
+      input[type=number]::-webkit-inner-spin-button, 
+      input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+      }
+      
+      /* Reset iOS default form styles and ensure transparent backgrounds */
+      input, select, textarea {
+        -webkit-appearance: none;
+        appearance: none;
+        border-radius: 0;
+        background-color: transparent;
+        /* Improve touch handling */
+        touch-action: manipulation;
+        /* PREVENT AUTO-ZOOM on iOS: Must be at least 16px */
+        font-size: 16px !important; 
+      }
+      
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #888; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #555; 
+      }
+      body {
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+        overscroll-behavior: none;
+        width: 100%;
+        position: relative;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-Byj5wsZK.js"></script>
+  </head>
+  <body class="font-body antialiased min-h-screen flex flex-col">
+    <div id="root" class="flex-grow"></div>
+  </body>
+</html>
